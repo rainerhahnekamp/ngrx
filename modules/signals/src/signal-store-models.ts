@@ -2,6 +2,7 @@ import { Signal } from '@angular/core';
 import { DeepSignal } from './deep-signal';
 import { StateSignal } from './state-signal';
 import { IsKnownRecord, Prettify } from './ts-helpers';
+import { NotOverriding } from './overloading';
 
 export type SignalStoreConfig = { providedIn: 'root' };
 
@@ -50,9 +51,19 @@ export type SignalStoreFeatureResult = {
 
 export type EmptyFeatureResult = { state: {}; signals: {}; methods: {} };
 
+type ExtendedProduct = {
+  state: Record<string, unknown>;
+};
+
+export type BetterSignalStoreFeature<
+  Input extends ExtendedProduct = ExtendedProduct,
+  Output extends ExtendedProduct &
+    NotOverriding<Input, Output> = ExtendedProduct & never
+> = Input & Output;
+
 export type SignalStoreFeature<
   Input extends SignalStoreFeatureResult = SignalStoreFeatureResult,
-  Output extends SignalStoreFeatureResult = SignalStoreFeatureResult
+  Output extends SignalStoreFeatureResult & NotOverriding<Input, Output> = any
 > = (
   store: InnerSignalStore<Input['state'], Input['signals'], Input['methods']>
 ) => InnerSignalStore<Output['state'], Output['signals'], Output['methods']>;
