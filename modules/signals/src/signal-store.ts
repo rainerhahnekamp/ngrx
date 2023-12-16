@@ -18,14 +18,13 @@ import {
   SignalStoreFeatureResult,
 } from './signal-store-models';
 import { Prettify } from './ts-helpers';
-import { NotOverriding } from './overloading';
 
 export function signalStore<F1 extends SignalStoreFeatureResult>(
   f1: SignalStoreFeature<EmptyFeatureResult, F1>
 ): Type<SignalStoreProps<F1> & StateSignal<Prettify<F1['state']>>>;
 export function signalStore<
   F1 extends SignalStoreFeatureResult,
-  F2 extends SignalStoreFeatureResult & NotOverriding<F1, F2>,
+  F2 extends SignalStoreFeatureResult,
   R extends SignalStoreFeatureResult = MergeFeatureResults<[F1, F2]>
 >(
   f1: SignalStoreFeature<EmptyFeatureResult, F1>,
@@ -33,9 +32,8 @@ export function signalStore<
 ): Type<SignalStoreProps<R> & StateSignal<Prettify<R['state']>>>;
 export function signalStore<
   F1 extends SignalStoreFeatureResult,
-  F2 extends SignalStoreFeatureResult & NotOverriding<F1, F2>,
-  F3 extends SignalStoreFeatureResult &
-    NotOverriding<MergeFeatureResults<[F1, F2]>, F3>,
+  F2 extends SignalStoreFeatureResult,
+  F3 extends SignalStoreFeatureResult,
   R extends SignalStoreFeatureResult = MergeFeatureResults<[F1, F2, F3]>
 >(
   f1: SignalStoreFeature<EmptyFeatureResult, F1>,
