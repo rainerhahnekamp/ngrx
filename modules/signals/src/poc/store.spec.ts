@@ -12,6 +12,13 @@ import { withState } from '../with-state';
 import { withComputed } from '../with-computed';
 import { withMethods } from '@ngrx/signals';
 
+/**
+ * Other approaches:
+ * - Put Override check at first feature
+ * - Put at the end
+ * - Add withoutOverrding()
+ */
+
 declare function signalStore<
   F1 extends SignalStoreFeatureResult,
   F2 extends SignalStoreFeatureResult,
