@@ -35,7 +35,7 @@ export function rxMethod<Input>(
       const watcher = effect(
         () => {
           const value = input();
-          untracked(() => source$.next(value));
+          source$.next(value);
         },
         { injector }
       );
