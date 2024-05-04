@@ -1,11 +1,16 @@
 import {
   getState,
   signalStore,
+  SignalStoreFeature,
   withComputed,
   withMethods,
   withState,
 } from '@ngrx/signals';
 import { computed } from '@angular/core';
+import {
+  EmptyFeatureResult,
+  SignalStoreFeatureResult,
+} from './signal-store-models';
 
 const person = {
   id: 1,
