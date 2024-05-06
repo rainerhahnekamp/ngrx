@@ -5,6 +5,7 @@ import {
   SignalsDictionary,
   SignalStoreFeature,
   SignalStoreFeatureResult,
+  SignalStoreProps,
   SignalStoreSlices,
 } from './signal-store-models';
 import {
@@ -14,81 +15,101 @@ import {
   withMethods,
   withState,
 } from '@ngrx/signals';
-import { computed, Input } from '@angular/core';
-import { build } from 'ng-packagr';
+import { Type } from '@angular/core';
 import { Prettify } from './ts-helpers';
 
-declare function feature<F1 extends SignalStoreFeatureResult>(
-  f1: SignalStoreFeature<EmptyFeatureResult, F1>
-): SignalStoreFeature<EmptyFeatureResult, F1>;
-
 interface Builder<Feature extends SignalStoreFeatureResult> {
-  and<NewFeature extends SignalStoreFeatureResult>(
+  add<NewFeature extends SignalStoreFeatureResult>(
     f1: SignalStoreFeature<Feature, NewFeature>
   ): Builder<MergeFeatureResults<[Feature, NewFeature]>>;
 
-  andState<State extends object>(
+  addState<State extends object>(
     stateOrFactory: State | (() => State)
   ): Builder<
     MergeFeatureResults<[Feature, EmptyFeatureResult & { state: State }]>
   >;
 
-  andComputed<
-    Signals extends SignalsDictionary,
-    Input extends SignalStoreFeatureResult
-  >(
+  addComputed<Signals extends SignalsDictionary>(
     signalsFactory: (
-      store: Prettify<SignalStoreSlices<Input['state']> & Input['signals']>
+      store: Prettify<SignalStoreSlices<Feature['state']> & Feature['signals']>
     ) => Signals
   ): Builder<
     MergeFeatureResults<[Feature, EmptyFeatureResult & { signals: Signals }]>
   >;
 
-  andMethods<
-    Input extends SignalStoreFeatureResult,
-    Methods extends MethodsDictionary
-  >(
+  addMethods<Methods extends MethodsDictionary>(
     methodsFactory: (
       store: Prettify<
-        SignalStoreSlices<Input['state']> &
-          Input['signals'] &
-          Input['methods'] &
-          StateSignal<Prettify<Input['state']>>
+        SignalStoreSlices<Feature['state']> &
+          Feature['signals'] &
+          Feature['methods'] &
+          StateSignal<Prettify<Feature['state']>>
       >
     ) => Methods
   ): Builder<
     MergeFeatureResults<[Feature, EmptyFeatureResult & { methods: Methods }]>
   >;
 
-  build(): SignalStoreFeature<EmptyFeatureResult, Feature>;
+  build(): Type<
+    SignalStoreProps<Feature> & StateSignal<Prettify<Feature['state']>>
+  >;
 }
 
-declare function builder(): Builder<EmptyFeatureResult>;
+class BuilderImpl<Feature extends SignalStoreFeatureResult>
+  implements Builder<Feature>
+{
+  features = new Array<SignalStoreFeature>();
 
-export function signalStoreBuilder(
-  builderFn: (
-    builder: () => Builder<EmptyFeatureResult>
-  ) => Builder<SignalStoreFeatureResult>
-) {
-  return signalStore(builderFn(builder).build());
+  add<NewFeature extends SignalStoreFeatureResult>(
+    f1: SignalStoreFeature<Feature, NewFeature>
+  ): Builder<MergeFeatureResults<[Feature, NewFeature]>> {
+    this.features.push(f1 as SignalStoreFeature);
+    return this;
+  }
+
+  addState<State extends object>(
+    stateOrFactory: State | (() => State)
+  ): Builder<
+    MergeFeatureResults<[Feature, EmptyFeatureResult & { state: State }]>
+  > {
+    this.features.push(withState(stateOrFactory));
+    return this as any;
+  }
+
+  addComputed<Signals extends SignalsDictionary>(
+    signalsFactory: (
+      store: Prettify<SignalStoreSlices<Feature['state']> & Feature['signals']>
+    ) => Signals
+  ): Builder<
+    MergeFeatureResults<[Feature, EmptyFeatureResult & { signals: Signals }]>
+  > {
+    return this.add(withComputed(signalsFactory));
+  }
+
+  addMethods<Methods extends MethodsDictionary>(
+    methodsFactory: (
+      store: Prettify<
+        SignalStoreSlices<Feature['state']> &
+          Feature['signals'] &
+          Feature['methods'] &
+          StateSignal<Prettify<Feature['state']>>
+      >
+    ) => Methods
+  ): Builder<
+    MergeFeatureResults<[Feature, EmptyFeatureResult & { methods: Methods }]>
+  > {
+    return this.add(withMethods(methodsFactory));
+  }
+
+  build(): Type<
+    SignalStoreProps<Feature> & StateSignal<Prettify<Feature['state']>>
+  > {
+    return (signalStore as (...features: SignalStoreFeature[]) => unknown)(
+      ...this.features
+    ) as any;
+  }
 }
 
-const LargeStore = signalStore(
-  builder()
-    .andState({ id: 1 })
-    .andMethods(() => ({
-      load(id: number) {
-        return true;
-      },
-    }))
-    .andComputed((state) => ({
-      prettyId: computed(() => state.id()),
-    }))
-    .andState({ name: 'Rainer' })
-    .andComputed((state) => ({
-      prettyName: computed(() => state.name()),
-    }))
-    .build()
-);
-const largeStore = new LargeStore();
-const id = largeStore.id;
+export function signalStoreBuilder(): Builder<EmptyFeatureResult> {
+  return new BuilderImpl<EmptyFeatureResult>();
+}
