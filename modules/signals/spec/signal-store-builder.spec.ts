@@ -2,6 +2,7 @@ import { computed } from '@angular/core';
 import { signalStoreBuilder } from '../src/signal-store-builder';
 import {
   patchState,
+  signalStoreFeature,
   withComputed,
   withMethods,
   withState,
@@ -76,5 +77,36 @@ describe('Signal Store Builder', () => {
 
     const largeStore = new LargeStore();
     expect(typeof largeStore.id11() === 'number').toBe(true);
+  });
+
+  it('also works with custom extensions', () => {
+    const withLoading = () =>
+      signalStoreFeature(
+        withState({ loadStatus: 'not loading' as 'loading' | 'not loading' }),
+        withMethods((store) => ({
+          toggleLoading() {
+            patchState(store, {
+              loadStatus:
+                store.loadStatus() === 'loading' ? 'not loading' : 'loading',
+            });
+          },
+        })),
+        withComputed((state) => ({
+          isLoading: computed(() => state.loadStatus() === 'loading'),
+        }))
+      );
+
+    const Store = signalStoreBuilder()
+      .addState({
+        names: [{ firstname: 'John', lastname: 'List' }],
+      })
+      .add(withLoading())
+      .build();
+
+    const store = new Store();
+
+    expect(store.isLoading()).toBe(false);
+    store.toggleLoading();
+    expect(store.isLoading()).toBe(true);
   });
 });
