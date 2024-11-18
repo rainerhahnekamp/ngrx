@@ -1,5 +1,12 @@
 // disabled because we have lowercase generics for `select`
-import { computed, Injectable, Provider, Signal } from '@angular/core';
+import {
+  computed,
+  inject,
+  Injectable,
+  Injector,
+  Provider,
+  Signal,
+} from '@angular/core';
 import { Observable, Observer, Operator } from 'rxjs';
 import { distinctUntilChanged, map, pluck } from 'rxjs/operators';
 
@@ -26,7 +33,8 @@ export class Store<T = object>
   constructor(
     state$: StateObservable,
     private actionsObserver: ActionsSubject,
-    private reducerManager: ReducerManager
+    private reducerManager: ReducerManager,
+    private injector?: Injector
   ) {
     super();
 
@@ -126,6 +134,14 @@ export class Store<T = object>
 
   dispatch<V extends Action = Action>(
     action: V &
+      FunctionIsNotAllowed<
+        V,
+        'Functions are not allowed to be dispatched. Did you forget to call the action creator function?'
+      >
+  ): void;
+  dispatch(action: Signal<Action>): void;
+  dispatch<V extends Action = Action>(
+    action: (V | Signal<V>) &
       FunctionIsNotAllowed<
         V,
         'Functions are not allowed to be dispatched. Did you forget to call the action creator function?'
