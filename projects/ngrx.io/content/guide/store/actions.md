@@ -31,8 +31,10 @@ This action describes an event triggered by a successful authentication after in
 ```json
 {
   type: '[Login Page] Login',
-  username: string;
-  password: string;
+  username: string
+  ;
+  password: string
+  ;
 }
 ```
 
@@ -56,8 +58,8 @@ Let's look at an example action of initiating a login request.
 import { createAction, props } from '@ngrx/store';
 
 export const login = createAction(
-  '[Login Page] Login',
-  props&lt;{ username: string; password: string }&gt;()
+'[Login Page] Login',
+props&lt;{ username: string; password: string }&gt;()
 );
 </code-example>
 
@@ -84,6 +86,62 @@ The returned action has very specific context about where the action came from a
 **Note:** You can also write actions using class-based action creators, which was the previously defined way before action creators were introduced in NgRx. If you are looking for examples of class-based action creators, visit the documentation for [versions 7.x and prior](https://v7.ngrx.io/guide/store/actions).
 
 </div>
+
+## Signal Actions
+
+There is also the option to dispatch a Signal of type `Signal<Action>`:
+
+<code-example header="book.component.ts">
+class BookComponent {
+  bookId = input.required&lt;number&gt;();
+  loadBookAction = computed(() => loadBook({ id: this.bookId() }));
+
+  constructor(store: Store) {
+    store.dispatch(this.loadBookAction);
+  }
+}
+</code-example>
+
+`dispatch` executes initially and every time the `bookId` changes. If `dispatch` is called within an injection context, the Signal will be tracked until context is destroyed. In the example above, that would be when `BookingComponent` is destroyed.
+
+If `dispatch` is called outside an injection context, the Signal will be tracked during the whole application lifecycle.
+
+Alternatively, you can provide your own injection context:
+
+<code-example header="book.component.ts">
+class BookComponent {  
+  bookId = input.required&lt;number&gt;();
+  loadBookAction = computed(() => loadBook({ id: this.bookId() }));
+  injector = inject(Injector);
+
+  ngOnInit(store: Store) {
+    // runs outside the injection context
+    store.dispatch(this.loadBookAction, {injector: this.injector});
+  }
+}
+</code-example>
+
+`dispatch` will return an `EffectRef` if you provide a Signal. You can manually destroy the effect by calling `destroy` on the `EffectRef`.
+
+<code-example header="book.component.ts">
+class BookComponent {
+  bookId = input.required&lt;number&gt;();
+  loadBookAction = computed(() => loadBook({ id: this.bookId() }));
+  loadBookEffectRef: EffectRef | undefined;
+
+  ngOnInit(store: Store) {
+    // uses injection context of Store, i.e. root injector
+    this.loadBookEffectRef = store.dispatch(this.loadBookAction);
+  }
+
+  ngOnDestroy() {
+    if (this.loadBookEffectRef) {
+      // destroys the effect
+      this.loadBookEffectRef.destroy();
+    }
+  }
+}
+</code-example>
 
 ## Next Steps
 
