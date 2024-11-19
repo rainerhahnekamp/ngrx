@@ -1,11 +1,15 @@
 // disabled because we have lowercase generics for `select`
 import {
   computed,
+  effect,
+  EffectRef,
   inject,
   Injectable,
   Injector,
+  isSignal,
   Provider,
   Signal,
+  untracked,
 } from '@angular/core';
 import { Observable, Observer, Operator } from 'rxjs';
 import { distinctUntilChanged, map, pluck } from 'rxjs/operators';
@@ -19,6 +23,7 @@ import {
 } from './models';
 import { ReducerManager } from './reducer_manager';
 import { StateObservable } from './state';
+import { assertNotUndefined } from './helpers';
 
 @Injectable()
 export class Store<T = object>
@@ -139,14 +144,18 @@ export class Store<T = object>
         'Functions are not allowed to be dispatched. Did you forget to call the action creator function?'
       >
   ): void;
-  dispatch(action: Signal<Action>): void;
+  dispatch(action: Signal<Action>, config?: { injector: Injector }): EffectRef;
   dispatch<V extends Action = Action>(
     action: (V | Signal<V>) &
       FunctionIsNotAllowed<
         V,
         'Functions are not allowed to be dispatched. Did you forget to call the action creator function?'
-      >
-  ) {
+      >,
+    config?: { injector: Injector }
+  ): EffectRef | undefined {
+    if (isSignal(action)) {
+      return this.processSignalToDispatch(action, config);
+    }
     this.actionsObserver.next(action);
   }
 
@@ -171,6 +180,25 @@ export class Store<T = object>
 
   removeReducer<Key extends Extract<keyof T, string>>(key: Key) {
     this.reducerManager.removeReducer(key);
+  }
+
+  private processSignalToDispatch(
+    actionSignal: Signal<Action>,
+    config?: { injector: Injector }
+  ) {
+    assertNotUndefined(this.injector);
+    const effectInjector =
+      config?.injector ?? getCallerInjector() ?? this.injector;
+
+    return effect(
+      () => {
+        const action = actionSignal();
+        untracked(() => {
+          this.dispatch(action);
+        });
+      },
+      { injector: effectInjector }
+    );
   }
 }
 
@@ -287,4 +315,12 @@ export function select<T, Props, K>(
 
     return mapped$.pipe(distinctUntilChanged());
   };
+}
+
+function getCallerInjector() {
+  try {
+    return inject(Injector);
+  } catch (_) {
+    return undefined;
+  }
 }

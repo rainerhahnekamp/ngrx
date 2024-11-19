@@ -1,4 +1,11 @@
-import { InjectionToken } from '@angular/core';
+import {
+  computed,
+  createEnvironmentInjector,
+  EnvironmentInjector,
+  InjectionToken,
+  runInInjectionContext,
+  signal,
+} from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { hot } from 'jasmine-marbles';
 import {
@@ -701,6 +708,101 @@ describe('ngRx Store', () => {
 
       expect(metaReducerSpy1).toHaveBeenCalledWith(counterReducer);
       expect(metaReducerSpy2).toHaveBeenCalledWith(counterReducer2);
+    });
+  });
+
+  describe('Signal Dispatcher', () => {
+    const setupForSignalDispatcher = () => {
+      setup();
+      store = TestBed.inject(Store);
+
+      const inputId = signal(1);
+      const incrementerAction = computed(() => ({
+        type: INCREMENT,
+        id: inputId(),
+      }));
+
+      const changeInputIdAndFlush = () => {
+        inputId.update((value) => value + 1);
+        TestBed.flushEffects();
+      };
+
+      const stateSignal = store.selectSignal((state) => state.counter1);
+
+      return { inputId, incrementerAction, stateSignal, changeInputIdAndFlush };
+    };
+
+    it('should dispatch upon Signal change', () => {
+      const { inputId, incrementerAction, changeInputIdAndFlush, stateSignal } =
+        setupForSignalDispatcher();
+
+      expect(stateSignal()).toBe(0);
+
+      store.dispatch(incrementerAction);
+      TestBed.flushEffects();
+      expect(stateSignal()).toBe(1);
+
+      changeInputIdAndFlush();
+      expect(stateSignal()).toBe(2);
+
+      inputId.update((value) => value + 1);
+      expect(stateSignal()).toBe(2);
+
+      TestBed.flushEffects();
+      expect(stateSignal()).toBe(3);
+
+      TestBed.flushEffects();
+      expect(stateSignal()).toBe(3);
+    });
+
+    it('should stop dispatching once the effect is destroyed', () => {
+      const { incrementerAction, changeInputIdAndFlush, stateSignal } =
+        setupForSignalDispatcher();
+
+      const ref = store.dispatch(incrementerAction);
+      TestBed.flushEffects();
+
+      ref.destroy();
+      changeInputIdAndFlush();
+      expect(stateSignal()).toBe(1);
+    });
+
+    it('should use the injectionContext of the caller if available', () => {
+      const { incrementerAction, changeInputIdAndFlush, stateSignal } =
+        setupForSignalDispatcher();
+
+      const callerContext = createEnvironmentInjector(
+        [],
+        TestBed.inject(EnvironmentInjector)
+      );
+      runInInjectionContext(callerContext, () =>
+        store.dispatch(incrementerAction)
+      );
+
+      TestBed.flushEffects();
+      expect(stateSignal()).toBe(1);
+
+      callerContext.destroy();
+      changeInputIdAndFlush();
+      expect(stateSignal()).toBe(1);
+    });
+
+    it('should allow to override the injectionContext of the caller', () => {
+      const { incrementerAction, changeInputIdAndFlush, stateSignal } =
+        setupForSignalDispatcher();
+
+      const environmentInjector = TestBed.inject(EnvironmentInjector);
+      const callerContext = createEnvironmentInjector([], environmentInjector);
+      runInInjectionContext(callerContext, () =>
+        store.dispatch(incrementerAction, { injector: environmentInjector })
+      );
+
+      TestBed.flushEffects();
+      expect(stateSignal()).toBe(1);
+
+      callerContext.destroy();
+      changeInputIdAndFlush();
+      expect(stateSignal()).toBe(2);
     });
   });
 });
