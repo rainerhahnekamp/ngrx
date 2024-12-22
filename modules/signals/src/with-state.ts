@@ -10,6 +10,7 @@ import {
   SignalStoreFeatureResult,
 } from './signal-store-models';
 import { freezeInDevMode } from './deep-freeze';
+import { State } from '@ngrx/store';
 
 export function withState<State extends object>(
   stateFactory: () => State
@@ -17,12 +18,10 @@ export function withState<State extends object>(
   EmptyFeatureResult,
   { state: State; props: {}; methods: {} }
 >;
-export function withState<State extends object>(
-  state: State
-): SignalStoreFeature<
-  EmptyFeatureResult,
-  { state: State; props: {}; methods: {} }
->;
+export function withState<
+  State extends object,
+  Input extends SignalStoreFeatureResult
+>(state: State): SignalStoreFeature<Input, Input & { state: State }>;
 export function withState<State extends object>(
   stateOrFactory: State | (() => State)
 ): SignalStoreFeature<
