@@ -1,4 +1,4 @@
-import { computed } from '@angular/core';
+import { computed, Signal, signal } from '@angular/core';
 import { assertUniqueStoreMembers } from './signal-store-assertions';
 import { toDeepSignal } from './deep-signal';
 import { STATE_SOURCE } from './state-source';
@@ -35,17 +35,17 @@ export function withState<State extends object>(
 
     assertUniqueStoreMembers(store, stateKeys);
 
-    store[STATE_SOURCE].update((currentState) => ({
-      ...currentState,
-      ...state,
-    }));
-
-    const stateSignals = stateKeys.reduce((acc, key) => {
-      const sliceSignal = computed(
-        () => (store[STATE_SOURCE]() as Record<string | symbol, unknown>)[key]
-      );
-      return { ...acc, [key]: toDeepSignal(sliceSignal) };
-    }, {} as SignalsDictionary);
+    const stateAsRecord = state as Record<string | symbol, unknown>;
+    const signals = store[STATE_SOURCE] as Record<
+      string | symbol,
+      Signal<unknown>
+    >;
+    const stateSignals = {} as SignalsDictionary;
+    for (const key of stateKeys) {
+      const signalValue = stateAsRecord[key];
+      signals[key] = signal(signalValue);
+      stateSignals[key] = toDeepSignal(signals[key]);
+    }
 
     return {
       ...store,
