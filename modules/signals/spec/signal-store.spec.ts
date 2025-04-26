@@ -47,16 +47,18 @@ describe('signalStore', () => {
       expect(store1.foo()).toBe('bar');
     });
 
-    it('creates a store with readonly state source by default', () => {
+    it('creates a store with state source as Record holding slices as signals by default', () => {
       const Store = signalStore(withState({ foo: 'bar' }));
       const store = new Store();
       const stateSource = store[STATE_SOURCE];
 
-      expect(isSignal(stateSource)).toBe(true);
-      expect(stateSource()).toEqual({ foo: 'bar' });
+      expect(isSignal(stateSource)).toBe(false);
+      expect(Object.keys(stateSource)).toEqual(['foo']);
+      expect(isSignal(stateSource.foo)).toBe(true);
+      expect(stateSource.foo()).toBe('bar');
     });
 
-    it('creates a store with readonly state source when protectedState option is true', () => {
+    it('creates a store with state source as Record holding slices as signals when protectedState option is true', () => {
       const Store = signalStore(
         { protectedState: true },
         withState({ foo: 'bar' })
@@ -64,11 +66,13 @@ describe('signalStore', () => {
       const store = new Store();
       const stateSource = store[STATE_SOURCE];
 
-      expect(isSignal(stateSource)).toBe(true);
-      expect(stateSource()).toEqual({ foo: 'bar' });
+      expect(isSignal(stateSource)).toBe(false);
+      expect(Object.keys(stateSource)).toEqual(['foo']);
+      expect(isSignal(stateSource.foo)).toBe(true);
+      expect(stateSource.foo()).toBe('bar');
     });
 
-    it('creates a store with writable state source when protectedState option is false', () => {
+    it('creates a store with state source as Record holding slices as writeable signals when protectedState option is false', () => {
       const Store = signalStore(
         { protectedState: false },
         withState({ foo: 'bar' })
@@ -76,13 +80,15 @@ describe('signalStore', () => {
       const store = new Store();
       const stateSource = store[STATE_SOURCE];
 
-      expect(isSignal(stateSource)).toBe(true);
-      expect(stateSource()).toEqual({ foo: 'bar' });
-      expect(typeof stateSource.update === 'function').toBe(true);
+      expect(isSignal(stateSource)).toBe(false);
+      expect(Object.keys(stateSource)).toEqual(['foo']);
+      expect(isSignal(stateSource.foo)).toBe(true);
+      expect(stateSource.foo()).toBe('bar');
+      expect(typeof stateSource.foo.update === 'function').toBe(true);
 
       patchState(store, { foo: 'baz' });
 
-      expect(stateSource()).toEqual({ foo: 'baz' });
+      expect(stateSource.foo()).toBe('baz');
     });
   });
 
@@ -97,10 +103,10 @@ describe('signalStore', () => {
 
       const store = new Store();
 
-      expect(store[STATE_SOURCE]()).toEqual({
-        foo: 'foo',
-        x: { y: { z: 10 } },
-      });
+      expect(Object.keys(store[STATE_SOURCE])).toEqual(['foo', 'x']);
+      expect(store[STATE_SOURCE].foo()).toBe('foo');
+      expect(store[STATE_SOURCE].x()).toEqual({ y: { z: 10 } });
+
       expect(store.foo()).toBe('foo');
       expect(store.x()).toEqual({ y: { z: 10 } });
       expect(store.x.y()).toEqual({ z: 10 });
