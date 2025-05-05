@@ -1,7 +1,6 @@
-import { computed, Signal, signal } from '@angular/core';
-import { assertUniqueStoreMembers } from './signal-store-assertions';
+import { Signal, signal } from '@angular/core';
 import { toDeepSignal } from './deep-signal';
-import { STATE_SOURCE } from './state-source';
+import { assertUniqueStoreMembers } from './signal-store-assertions';
 import {
   EmptyFeatureResult,
   InnerSignalStore,
@@ -9,6 +8,7 @@ import {
   SignalStoreFeature,
   SignalStoreFeatureResult,
 } from './signal-store-models';
+import { STATE_SOURCE } from './state-source';
 
 export function withState<State extends object>(
   stateFactory: () => State
@@ -36,15 +36,15 @@ export function withState<State extends object>(
     assertUniqueStoreMembers(store, stateKeys);
 
     const stateAsRecord = state as Record<string | symbol, unknown>;
-    const signals = store[STATE_SOURCE] as Record<
+    const stateSource = store[STATE_SOURCE] as Record<
       string | symbol,
       Signal<unknown>
     >;
     const stateSignals = {} as SignalsDictionary;
     for (const key of stateKeys) {
       const signalValue = stateAsRecord[key];
-      signals[key] = signal(signalValue);
-      stateSignals[key] = toDeepSignal(signals[key]);
+      stateSource[key] = signal(signalValue);
+      stateSignals[key] = toDeepSignal(stateSource[key]);
     }
 
     return {

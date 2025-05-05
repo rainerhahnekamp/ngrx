@@ -51,7 +51,8 @@ export function isWritableStateSource<State extends object>(
 export function patchState<State extends object>(
   stateSource: WritableStateSource<State>,
   ...updaters: Array<
-    Partial<Prettify<State>> | PartialStateUpdater<Prettify<State>>
+    | Partial<Prettify<NoInfer<State>>>
+    | PartialStateUpdater<Prettify<NoInfer<State>>>
   >
 ): void {
   const currentState = untracked(() => getState(stateSource));
@@ -64,7 +65,12 @@ export function patchState<State extends object>(
   );
 
   const signals = stateSource[STATE_SOURCE];
+  const stateKeys = Reflect.ownKeys(stateSource[STATE_SOURCE]);
   for (const key of Reflect.ownKeys(newState)) {
+    if (!stateKeys.includes(key)) {
+      // TODO: Optional properties which don't exist in the initial state will not be added
+      continue;
+    }
     const signalKey = key as keyof State;
     signals[signalKey].set(newState[signalKey]);
   }

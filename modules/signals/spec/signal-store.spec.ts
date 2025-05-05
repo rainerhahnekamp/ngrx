@@ -16,7 +16,7 @@ import {
   withState,
 } from '../src';
 import { STATE_SOURCE } from '../src/state-source';
-import { createLocalService } from './helpers';
+import { assertStateSource, createLocalService } from './helpers';
 
 describe('signalStore', () => {
   describe('creation', () => {
@@ -55,7 +55,9 @@ describe('signalStore', () => {
       expect(isSignal(stateSource)).toBe(false);
       expect(Object.keys(stateSource)).toEqual(['foo']);
       expect(isSignal(stateSource.foo)).toBe(true);
-      expect(stateSource.foo()).toBe('bar');
+      assertStateSource(stateSource, {
+        foo: signal('bar'),
+      });
     });
 
     it('creates a store with state source as Record holding slices as signals when protectedState option is true', () => {
@@ -69,7 +71,9 @@ describe('signalStore', () => {
       expect(isSignal(stateSource)).toBe(false);
       expect(Object.keys(stateSource)).toEqual(['foo']);
       expect(isSignal(stateSource.foo)).toBe(true);
-      expect(stateSource.foo()).toBe('bar');
+      assertStateSource(stateSource, {
+        foo: signal('bar'),
+      });
     });
 
     it('creates a store with state source as Record holding slices as writeable signals when protectedState option is false', () => {
@@ -83,12 +87,16 @@ describe('signalStore', () => {
       expect(isSignal(stateSource)).toBe(false);
       expect(Object.keys(stateSource)).toEqual(['foo']);
       expect(isSignal(stateSource.foo)).toBe(true);
-      expect(stateSource.foo()).toBe('bar');
+      assertStateSource(stateSource, {
+        foo: signal('bar'),
+      });
       expect(typeof stateSource.foo.update === 'function').toBe(true);
 
       patchState(store, { foo: 'baz' });
 
-      expect(stateSource.foo()).toBe('baz');
+      assertStateSource(stateSource, {
+        foo: signal('baz'),
+      });
     });
   });
 
@@ -103,9 +111,10 @@ describe('signalStore', () => {
 
       const store = new Store();
 
-      expect(Object.keys(store[STATE_SOURCE])).toEqual(['foo', 'x']);
-      expect(store[STATE_SOURCE].foo()).toBe('foo');
-      expect(store[STATE_SOURCE].x()).toEqual({ y: { z: 10 } });
+      assertStateSource(store[STATE_SOURCE], {
+        foo: signal('foo'),
+        x: signal({ y: { z: 10 } }),
+      });
 
       expect(store.foo()).toBe('foo');
       expect(store.x()).toEqual({ y: { z: 10 } });
@@ -184,7 +193,9 @@ describe('signalStore', () => {
 
       const store = new Store();
 
-      expect(store[STATE_SOURCE]()).toEqual({ foo: 'foo' });
+      assertStateSource(store[STATE_SOURCE], {
+        foo: signal('foo'),
+      });
       expect(store.foo()).toBe('foo');
       expect(store.bar()).toBe('bar');
       expect(store.num).toBe(10);
@@ -242,7 +253,9 @@ describe('signalStore', () => {
 
       const store = new Store();
 
-      expect(store[STATE_SOURCE]()).toEqual({ foo: 'foo' });
+      assertStateSource(store[STATE_SOURCE], {
+        foo: signal('foo'),
+      });
       expect(store.foo()).toBe('foo');
       expect(store.bar()).toBe('bar');
       expect(store.num).toBe(10);
@@ -285,7 +298,9 @@ describe('signalStore', () => {
         withMethods(() => ({ baz: () => 'baz' })),
         withProps(() => ({ num: 100 })),
         withMethods((store) => {
-          expect(store[STATE_SOURCE]()).toEqual({ foo: 'foo' });
+          assertStateSource(store[STATE_SOURCE], {
+            foo: signal('foo'),
+          });
           expect(store.foo()).toBe('foo');
           expect(store.bar()).toBe('bar');
           expect(store.baz()).toBe('baz');
@@ -297,7 +312,9 @@ describe('signalStore', () => {
 
       const store = new Store();
 
-      expect(store[STATE_SOURCE]()).toEqual({ foo: 'foo' });
+      assertStateSource(store[STATE_SOURCE], {
+        foo: signal('foo'),
+      });
       expect(store.foo()).toBe('foo');
       expect(store.bar()).toBe('bar');
       expect(store.baz()).toBe('baz');
@@ -378,7 +395,9 @@ describe('signalStore', () => {
         withProps(() => ({ num: 10 })),
         withHooks({
           onInit(store) {
-            expect(store[STATE_SOURCE]()).toEqual({ foo: 'foo' });
+            assertStateSource(store[STATE_SOURCE], {
+              foo: signal('foo'),
+            });
             expect(store.foo()).toBe('foo');
             expect(store.bar()).toBe('bar');
             expect(store.baz()).toBe('baz');

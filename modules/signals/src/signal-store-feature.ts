@@ -374,7 +374,7 @@ export function signalStoreFeature(
     | SignalStoreFeature[]
 ): SignalStoreFeature<EmptyFeatureResult, EmptyFeatureResult> {
   const features = (
-    typeof args[0] === 'function' ? args.slice(1) : args
+    typeof args[0] === 'function' ? args : args.slice(1)
   ) as SignalStoreFeature[];
 
   return (inputStore) =>
