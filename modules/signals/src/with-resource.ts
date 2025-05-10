@@ -3,17 +3,20 @@ import {
   Resource,
   ResourceRef,
   ResourceStatus,
+  signal,
   Signal,
   untracked,
 } from '@angular/core';
 import {
   EmptyFeatureResult,
+  SignalsDictionary,
   SignalStoreFeature,
   SignalStoreFeatureResult,
   StateSignals,
 } from './signal-store-models';
-import { withState } from '@ngrx/signals';
+import { withState, WritableStateSource } from '@ngrx/signals';
 import { throwIfNull } from './ts-helpers';
+import { STATE_SOURCE } from './state-source';
 
 type StoreForResource<Input extends SignalStoreFeatureResult> = StateSignals<
   Input['state']
@@ -27,9 +30,6 @@ type ResourceFeature<T> = EmptyFeatureResult & {
     status: Signal<ResourceStatus>;
     error: Signal<unknown>;
     isLoading: Signal<boolean>;
-    __resource: {
-      [RESOURCE]: ResourceRef<T>;
-    };
   };
   methods: {
     hasValue(): this is Resource<NonNullable<T>>;
@@ -87,21 +87,21 @@ type NamedResourceFeature<
  * );
  * ```
  *
- * It is also possible to use multiple resources. The approach would
- * be the same we have with `withEntites` via named properties.
+ * It is also possible to use named resources. The approach would
+ * be the same we have with `withEntities` via named properties.
  *
  * Regardless if named or non-named resource, the SignalStore always
  * exposes the resource as a readonly.
- *
- * In a sense, `withResource` is not experimental. The resource function is,
- * but that one is provided by the user. We just use the API.
  *
  * The actual resource is hidden behind a private Symbol. That means it is
  * not accessible even for the features of the SignalStore.
  * Instead, we provide standalone functions to manipulate the resource.
  * That is
- * - `reloadResource(store)`
+ * - `reloadResource(store, WritableStateSource)`
+ * - `reloadResource(name: string, store: WritableStateSource)`
  * - `patchState(store, setResource(value))`
+ * - `patchState(store, setResource(name: string, value))`
+ *
  *
  * ## Implementation Note
  *
@@ -132,9 +132,9 @@ type NamedResourceFeature<
  * ```typescript
  * withResource(store => ({
  *   enabled: store.enabled,
- *   reqest: interval(1000),
+ *   request: interval(1000),
  *   // ...
- * })
+ * }))
  * ```
  */
 export function withResource<Input extends SignalStoreFeatureResult, Value>(
@@ -144,7 +144,7 @@ export function withResource<Input extends SignalStoreFeatureResult, Value>(
 /**
  * The named resource version creates resources at a property of the resourceName.
  *
- * The functions `reloadResource` and `setResourceValue` also accept a name.
+ * The functions `reloadResource` and `setResource` also accept a name.
  *
  * Setting the resource as property is required to be able to provide
  * multipe `ResourceRef` types. Splitting up the various properties
@@ -173,28 +173,18 @@ export function withResource<
   ResourceValue,
   Name extends string
 >(
-  name: Name, // name should be seen first.
+  name: Name,
   resourceFactory: (
     store: StoreForResource<Input>
   ) => ResourceRef<ResourceValue>
 ): SignalStoreFeature<Input, NamedResourceFeature<Name, ResourceValue>>;
 
-/**
- * Implementation Note
- *
-
- */
-export function withResource<
-  Input extends SignalStoreFeatureResult,
-  ResourceValue
->(
+export function withResource<Input extends SignalStoreFeatureResult, Value>(
   nameOrResourceFactory:
-    | string
-    | ((store: StoreForResource<Input>) => ResourceRef<ResourceValue>),
-  resourceFactory?: (
-    store: StoreForResource<Input>
-  ) => ResourceRef<ResourceValue>
-): SignalStoreFeature {
+    | ((store: StoreForResource<Input>) => ResourceRef<Value>)
+    | string,
+  resourceFactory?: (store: StoreForResource<Input>) => ResourceRef<Value>
+): SignalStoreFeature<Input> {
   if (typeof nameOrResourceFactory === 'string') {
     return createNamedResourceFeature(
       nameOrResourceFactory,
@@ -227,22 +217,23 @@ function createResourceFeature<
     } as StoreForResource<Input>;
 
     const resource = resourceFactory(storeForResourceFactory);
-    const storeWithState = withState({ [RESOURCE]: resource })(store);
+    const stateSource = store[STATE_SOURCE] as SignalsDictionary;
+    stateSource[RESOURCE] = signal(resource);
 
     return {
-      ...storeWithState,
+      ...store,
       props: {
-        ...storeWithState.props,
+        ...store.props,
         value: resource.value,
         status: resource.status,
         error: resource.error,
         isLoading: resource.isLoading,
-        __resource: {
-          [RESOURCE]: resource,
-        },
+        // __resource: {
+        //   [RESOURCE]: resource,
+        // },
       },
       methods: {
-        ...storeWithState.methods,
+        ...store.methods,
         hasValue: (): this is Resource<NonNullable<ResourceValue>> => {
           return resource.hasValue();
         },
@@ -333,7 +324,7 @@ type NamedResourceStore<Name extends string, Value> = {
 };
 
 /**
- * @param store
+ * @param value
  */
 export function setResource<T>(
   value: NoInfer<T>
@@ -359,10 +350,13 @@ export function setNamedResource<T>(name: string, value: NoInfer<T>) {
  * Triggers the `reload` method on the internal resource.
  * @param store
  */
-export function reloadResource(store: ResourceStore<unknown>): void;
+export function reloadResource(
+  store: WritableStateSource<{ [RESOURCE]: ResourceRef<unknown> }>
+): void;
 /**
  * Triggers the `reload` method on the internal resource.
  * @param store
+ * @param name name of the resource to reload
  */
 export function reloadResource<Name extends string, ResourceValue>(
   name: Name,
@@ -370,7 +364,9 @@ export function reloadResource<Name extends string, ResourceValue>(
 ): void;
 
 export function reloadResource<Name extends string, ResourceValue>(
-  nameOrStore: ResourceStore<ResourceValue> | string,
+  nameOrStore:
+    | WritableStateSource<{ [RESOURCE]: ResourceRef<unknown> }>
+    | string,
   store?: NamedResourceStore<Name, ResourceValue>
 ) {
   untracked(() => {
