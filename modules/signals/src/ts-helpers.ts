@@ -33,3 +33,11 @@ export type IsKnownRecord<T> = IsRecord<T> extends true
 export type OmitPrivate<T> = {
   [K in keyof T as K extends `_${string}` ? never : K]: T[K];
 };
+
+export function throwIfNull<T>(obj: T): NonNullable<T> {
+  if (obj === null || obj === undefined) {
+    throw new Error('');
+  }
+
+  return obj;
+}
