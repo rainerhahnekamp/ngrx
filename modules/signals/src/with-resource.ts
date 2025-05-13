@@ -1,5 +1,4 @@
 import {
-  resource,
   Resource,
   ResourceRef,
   ResourceStatus,
@@ -7,6 +6,7 @@ import {
   Signal,
   untracked,
 } from '@angular/core';
+import { WritableStateSource } from '@ngrx/signals';
 import {
   EmptyFeatureResult,
   SignalsDictionary,
@@ -14,15 +14,11 @@ import {
   SignalStoreFeatureResult,
   StateSignals,
 } from './signal-store-models';
-import { withState, WritableStateSource } from '@ngrx/signals';
-import { throwIfNull } from './ts-helpers';
 import { STATE_SOURCE } from './state-source';
+import { throwIfNull } from './ts-helpers';
 
-type StoreForResource<Input extends SignalStoreFeatureResult> = StateSignals<
-  Input['state']
-> &
-  Input['props'] &
-  Input['methods'];
+export const RESOURCE = Symbol('RESOURCE');
+export const RESOURCES = Symbol('RESOURCES');
 
 type ResourceFeature<T> = EmptyFeatureResult & {
   props: {
@@ -45,96 +41,58 @@ type NamedResourceFeature<
   ResourceValue
 > = EmptyFeatureResult & {
   state: {
-    [RESOURCES]: unknown;
+    [RESOURCES]: { [Key in Name]: ResourceRef<ResourceValue> };
   };
   props: {
     [Key in Name]: Resource<ResourceValue>;
-  } & {
-    __resources: {
-      [RESOURCE]: Record<Name, ResourceRef<ResourceValue>>;
-    };
   };
 };
 
+type ResourceStore<T> = WritableStateSource<{
+  [RESOURCE]: ResourceRef<T>;
+}>;
+
+type NamedResourceStore<Name extends string, Value> = WritableStateSource<{
+  [RESOURCES]: Record<Name, ResourceRef<Value>>;
+}>;
+
+type StoreForResource<Input extends SignalStoreFeatureResult> = StateSignals<
+  Input['state']
+> &
+  Input['props'] &
+  Input['methods'];
+
 /**
+ * Integrates a resource into the SignalStore, making the instance type-compatible
+ * with a readonly `Resource`.
  *
- * Adds a resource which is directly integrated into
- * the SignalStore, making the instance fully type-compatible
- * with a ResourceRef, i.e. a readonly resource.
- * You can also call it the "SignalStore as resource"-pattern.
- *
- * That makes the SignalStore quite versatile, because it can be used
- * for all the upcoming APIs in Angular that require a resource and at
- * the same it is a fully-fledged SignalStore with all its features.
- *
+ * It makes the SignalStore full compatible with Angular APIs that expect
+ * a `Resource`, while preserving full SignalStore capabilities.
  *
  * ## Basic Usage
  * ```ts
  * const Store = signalStore(
- *   withResource(() => httpResource<Product[]>(() => `/product`))
+ *   withResource(() => httpResource<Product[]>(
+ *     () => `/product`,
+ *     { defaultValue: [] }
+ *   ))
  * );
  *
- * const store = inject(Store) satisfies Resource<Product[] | undefined>;
+ * const store = inject(Store) // 👈 is of type Resource<Product[]>
  * ```
  *
- * `withResource` has full access to the SignalStore's state, props and methods.
- * That means you can use those elements as input for the resource.
+ * Like `withMethods`, `withResource` feature has access to
+ * state, props, and methods of the SignalStore which can
+ * be used as input for the resource:
  *
  * ```ts
  * const Store = signalStore(
  *  withState({ selectedId: 0 }),
- *  withResource(store => httpResource<Product[]>(() => `/product/${store.selectedId()}`))
+ *  withResource(store => httpResource<Product[]>(
+ *    () => `/product/${store.selectedId()}`,
+ *    { defaultValue: [] }
+ *  ))
  * );
- * ```
- *
- * It is also possible to use named resources. The approach would
- * be the same we have with `withEntities` via named properties.
- *
- * Regardless if named or non-named resource, the SignalStore always
- * exposes the resource as a readonly.
- *
- * The actual resource is hidden behind a private Symbol. That means it is
- * not accessible even for the features of the SignalStore.
- * Instead, we provide standalone functions to manipulate the resource.
- * That is
- * - `reloadResource(store, WritableStateSource)`
- * - `reloadResource(name: string, store: WritableStateSource)`
- * - `patchState(store, setResource(value))`
- * - `patchState(store, setResource(name: string, value))`
- *
- *
- * ## Implementation Note
- *
- * The goal is to have an API which is as close as possible to a potential
- * API from "@ngrx/signals". Therefore the implementation is not the most
- * efficient one. Especially the redundant storage of the resource once
- * in the state and once in the props is related to that.
- *
- * We want to hide the resource from both inside (other SignalStore features)
- * and the outside (component, services, etc.)
- *
- * Since we can't change the type of the SignalStore, so that it automatically
- * hides a RESOURCE symbol (like STATE_SOURCE), we hide the resource in the
- * state behind __resource which encapsulates it for the consumer.
- * Additionally, we put the actual resource into the property __resource
- * into a RESOURCE symbol, so that it is also encapsulated for the features
- * of the SignalStore.
- *
- * We need to have access to the real resource in the state as well.
- * This is because setResource only has access to the state.
- * `reloadResource` can access it via props.
- *
- * ## Potential further improvements
- *
- * We could come up with an own `NgRxResource,` which could support features
- * like enabling, or an RxJS-based `request` property.
- *
- * ```typescript
- * withResource(store => ({
- *   enabled: store.enabled,
- *   request: interval(1000),
- *   // ...
- * }))
  * ```
  */
 export function withResource<Input extends SignalStoreFeatureResult, Value>(
@@ -147,23 +105,25 @@ export function withResource<Input extends SignalStoreFeatureResult, Value>(
  * The functions `reloadResource` and `setResource` also accept a name.
  *
  * Setting the resource as property is required to be able to provide
- * multipe `ResourceRef` types. Splitting up the various properties
- * of `ResourceRef` with a named prefix would not allow that.
+ * multiple `ResourceRef` types.
  *
  * Example:
  * ```ts
- * const Store = signalStore(
- *   withState({
- *     selectedId: undefined as number | undefined,
- *   }),
- *   withResource('list', store => withHttpResource<Product[]>(() => `/product`)),
- *   withResource('detail', store => withHttpResource<ProductDetail>(() => `/product/${store.id()}`)),
- * )
+ * const ProductStore = signalStore(
+ *   withState({ selectedId: 0 }),
+ *   withResource('products', store => httpResource<Product[]>(
+ *     () => `/product`),
+ *     { defaultValue: [] }
+ *   )),
+ *   withResource('selectedProduct', ({ selectedId }) => httpResource<ProductDetail>(
+ *     () => selectedId() ? `/product/${store.selectedId()}` : undefined
+ *   )
+ * );
  *
  * const store = inject(Store);
  *
- * const listResource: ResourceRef<Product[]> = store.list;
- * const detailResource: ResourceRef<ProductDetail[]> = store.detail;
+ * const products = store.products; // 👈 is of type Resource<Product[]>
+ * const selectedProduct = store.selectedProduct; // 👈 is of type Resource<ProductDetail>
  * ```
  * @param name name of the property where the resource is stored
  * @param resourceFactory function generating the actual resource
@@ -195,16 +155,12 @@ export function withResource<Input extends SignalStoreFeatureResult, Value>(
   return createResourceFeature(nameOrResourceFactory);
 }
 
-function createResourceFeature<
-  Input extends SignalStoreFeatureResult,
-  ResourceValue
->(
-  resourceFactory: (
-    store: StoreForResource<Input>
-  ) => ResourceRef<ResourceValue>
+function createResourceFeature<Input extends SignalStoreFeatureResult, Value>(
+  resourceFactory: (store: StoreForResource<Input>) => ResourceRef<Value>
 ): SignalStoreFeature {
   return (store) => {
-    if ('__resource' in store.props) {
+    const stateSource = store[STATE_SOURCE] as SignalsDictionary;
+    if (RESOURCE in stateSource) {
       throw new Error(
         'You can only have one unnamed resource in a SignalStore. Use withResource(name, factory) to create named resources.'
       );
@@ -217,7 +173,6 @@ function createResourceFeature<
     } as StoreForResource<Input>;
 
     const resource = resourceFactory(storeForResourceFactory);
-    const stateSource = store[STATE_SOURCE] as SignalsDictionary;
     stateSource[RESOURCE] = signal(resource);
 
     return {
@@ -228,13 +183,10 @@ function createResourceFeature<
         status: resource.status,
         error: resource.error,
         isLoading: resource.isLoading,
-        // __resource: {
-        //   [RESOURCE]: resource,
-        // },
       },
       methods: {
         ...store.methods,
-        hasValue: (): this is Resource<NonNullable<ResourceValue>> => {
+        hasValue: (): this is Resource<NonNullable<Value>> => {
           return resource.hasValue();
         },
         reload: (): boolean => {
@@ -256,11 +208,7 @@ function createNamedResourceFeature<
   ) => ResourceRef<ResourceValue>
 ): SignalStoreFeature {
   return (store) => {
-    const existingResources = hasNamedResources(store.props)
-      ? store.props['__resources'][RESOURCE]
-      : {};
-
-    if (name in existingResources) {
+    if (name in store.props) {
       throw new Error(
         `Resource with "name" ${name} already exists. Please choose a different name.`
       );
@@ -275,163 +223,89 @@ function createNamedResourceFeature<
     const resource = resourceFactory(storeForResourceFactory);
     const readonlyResource = resource.asReadonly();
 
-    const storeWithState = withState({
-      [RESOURCES]: {
-        ...existingResources,
-        [name]: resource,
-      },
-    })(store);
+    const storeWithResources = store as NamedResourceStore<Name, ResourceValue>;
+
+    if (!storeWithResources[STATE_SOURCE][RESOURCES]) {
+      storeWithResources[STATE_SOURCE][RESOURCES] = signal(
+        {} as Record<Name, ResourceRef<ResourceValue>>
+      );
+    }
+
+    storeWithResources[STATE_SOURCE][RESOURCES].update((value) => ({
+      ...value,
+      [name]: resource,
+    }));
 
     return {
-      ...storeWithState,
+      ...store,
       props: {
-        ...storeWithState.props,
+        ...store.props,
         [name]: readonlyResource,
-        __resources: {
-          [RESOURCE]: {
-            ...existingResources,
-            [name]: resource,
-          },
-        },
       },
     };
   };
 }
 
-function hasNamedResources(
-  props: object
-): props is { __resources: { [RESOURCE]: Record<string, object> } } {
-  return (
-    '__resources' in props &&
-    typeof props['__resources'] === 'object' &&
-    Reflect.ownKeys(props['__resources'] ?? {}).includes(RESOURCE)
-  );
-}
+export function setResource<Value>(
+  value: NoInfer<Value>
+): (state: { [RESOURCE]: ResourceRef<Value> }) => Record<string, never>;
 
-const RESOURCE = Symbol('RESOURCE');
-const RESOURCES = Symbol('RESOURCES');
+export function setResource<Name extends string, Value>(
+  name: NoInfer<Name>,
+  value: NoInfer<Value>
+): (state: {
+  [RESOURCES]: { [Key in Name]: ResourceRef<Value> };
+}) => Record<string, never>;
 
-type SignalStoreResource<T> = {
-  [RESOURCE]: ResourceRef<T>;
-};
-
-type ResourceStore<T> = {
-  __resource: SignalStoreResource<T>;
-};
-
-type NamedResourceStore<Name extends string, Value> = {
-  __resources: { [RESOURCE]: { [Prop in Name as Name]: ResourceRef<Value> } };
-};
-
-/**
- * @param value
- */
-export function setResource<T>(
-  value: NoInfer<T>
-): (state: { [RESOURCE]: ResourceRef<T> }) => object;
-
-export function setResource<T>(value: NoInfer<T>) {
-  return (state: { [RESOURCE]: ResourceRef<T> }) => {
-    state[RESOURCE].set(value);
-    return {};
-  };
-}
-
-export function setNamedResource<T>(name: string, value: NoInfer<T>) {
-  return (state: { [RESOURCES]: unknown }) => {
-    const resources = state[RESOURCES] as Record<string, ResourceRef<T>>;
-    console.log(Object.keys(resources));
-    resources[name].set(value);
-    return {};
-  };
+export function setResource<Name extends string, Value>(
+  nameOrValue: Name | Value,
+  value?: Value
+) {
+  if (value) {
+    const name = nameOrValue as Name;
+    return (state: { [RESOURCES]: Record<Name, ResourceRef<Value>> }) => {
+      // TODO: We could delegate this to `patchState` which knows symbol RESOURCES
+      state[RESOURCES][name].set(value);
+      return {};
+    };
+  } else {
+    const resourceValue = nameOrValue as Value;
+    return (state: { [RESOURCE]: ResourceRef<Value> }) => {
+      // TODO: We could delegate this to `patchState` which knows symbol RESOURCES
+      state[RESOURCE].set(resourceValue);
+      return {};
+    };
+  }
 }
 
 /**
  * Triggers the `reload` method on the internal resource.
  * @param store
  */
-export function reloadResource(
-  store: WritableStateSource<{ [RESOURCE]: ResourceRef<unknown> }>
-): void;
+export function reloadResource(store: ResourceStore<unknown>): void;
 /**
  * Triggers the `reload` method on the internal resource.
  * @param store
  * @param name name of the resource to reload
  */
-export function reloadResource<Name extends string, ResourceValue>(
-  name: Name,
-  store: NamedResourceStore<Name, ResourceValue>
+export function reloadResource<Name extends string>(
+  store: NamedResourceStore<Name, unknown>,
+  name: Name
 ): void;
 
-export function reloadResource<Name extends string, ResourceValue>(
-  nameOrStore:
-    | WritableStateSource<{ [RESOURCE]: ResourceRef<unknown> }>
-    | string,
-  store?: NamedResourceStore<Name, ResourceValue>
+export function reloadResource<Name extends string>(
+  store: ResourceStore<unknown> | NamedResourceStore<Name, unknown>,
+  name?: Name
 ) {
   untracked(() => {
-    if (typeof nameOrStore === 'string') {
-      assertNamedRessourceStore(store, nameOrStore);
-      getNamedResource(store, nameOrStore).reload();
+    if (name) {
+      const stateSource = (store as NamedResourceStore<Name, unknown>)[
+        STATE_SOURCE
+      ];
+      stateSource[RESOURCES]()[name].reload();
     } else {
-      assertResourceStore(nameOrStore);
-      getResource(nameOrStore).reload();
+      const stateSource = (store as ResourceStore<unknown>)[STATE_SOURCE];
+      stateSource[RESOURCE]().reload();
     }
   });
-}
-
-function getResource<ResourceValue>(store: ResourceStore<ResourceValue>) {
-  return store.__resource[RESOURCE];
-}
-
-function getNamedResource<Name extends string, ResourceValue>(
-  store: NamedResourceStore<Name, ResourceValue>,
-  name: Name
-) {
-  const resourceMap = store.__resources[RESOURCE];
-  return resourceMap[name] as ResourceRef<ResourceValue>;
-}
-
-function isResourceStore<T>(store: object): store is ResourceStore<T> {
-  return Boolean(
-    '__resource' in store &&
-      store.__resource &&
-      typeof store.__resource === 'object' &&
-      Reflect.ownKeys(store.__resource).includes(RESOURCE)
-  );
-}
-
-function assertResourceStore<T>(
-  store: object
-): asserts store is ResourceStore<T> {
-  if (!isResourceStore(store)) {
-    throw new Error('resource is missing in SignalStore');
-  }
-}
-
-function isNamedResourceStore<Name extends string, ResourceValue>(
-  store: object,
-  name: Name
-): store is NamedResourceStore<Name, ResourceValue> {
-  if (
-    '__resources' in store &&
-    store.__resources &&
-    typeof store.__resources === 'object'
-  ) {
-    const resources = store.__resources as Record<
-      symbol,
-      ResourceRef<ResourceValue>
-    >;
-    return resources[RESOURCE] && name in resources[RESOURCE];
-  }
-  return false;
-}
-
-function assertNamedRessourceStore<Name extends string, ResourceValue>(
-  store: object | undefined,
-  name: Name
-): asserts store is NamedResourceStore<Name, ResourceValue> {
-  if (store && !isNamedResourceStore(store, name)) {
-    throw new Error(`named resource ${name} is missing in SignalStore`);
-  }
 }

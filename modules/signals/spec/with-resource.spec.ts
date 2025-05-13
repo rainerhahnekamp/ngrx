@@ -1,6 +1,5 @@
 import {
   reloadResource,
-  setNamedResource,
   setResource,
   withResource,
 } from '../src/with-resource';
@@ -12,12 +11,12 @@ import {
 } from '@angular/common/http/testing';
 import { inject, Injectable, resource, ResourceStatus } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { vitest } from 'vitest';
 import { signalStore } from '../src/signal-store';
-import { withState } from '../src/with-state';
+import { patchState } from '../src/state-source';
 import { withMethods } from '../src/with-methods';
 import { withProps } from '../src/with-props';
-import { patchState } from '../src/state-source';
-import { vitest } from 'vitest';
+import { withState } from '../src/with-state';
 
 type Address = {
   id: number;
@@ -117,21 +116,6 @@ describe('withResource', () => {
   afterEach(async () => {
     await vitest.runAllTimersAsync();
     vitest.useRealTimers();
-  });
-
-  it('should work', () => {
-    const Store = signalStore(
-      { providedIn: 'root' },
-      withState({ input: '' })
-      // withResource(() =>
-      //   resource({
-      //     defaultValue: venice,
-      //     loader: () => Promise.resolve(venice),
-      //   })
-      // )
-    );
-
-    TestBed.inject(Store);
   });
 
   it('should match the type of readonly resource', () => {
@@ -471,10 +455,11 @@ describe('withResource', () => {
         }),
         withMethods((store) => ({
           reloadActiveUser() {
-            reloadResource('activeUser', store);
+            const activeUser = store.activeUser;
+            reloadResource(store, 'activeUser');
           },
           setActiveUser(user: User) {
-            patchState(store, setNamedResource('activeUser', user));
+            patchState(store, setResource('activeUser', user));
           },
         }))
       );
@@ -503,10 +488,10 @@ describe('withResource', () => {
         }),
         withMethods((store) => ({
           reloadActiveUser() {
-            reloadResource('activeUser', store);
+            reloadResource(store, 'activeUser');
           },
           setActiveUser(user: User) {
-            patchState(store, setNamedResource('activeUser', user));
+            patchState(store, setResource('activeUser', user));
           },
         }))
       );

@@ -27,4 +27,5 @@ export { withFeature } from './with-feature';
 export { withHooks } from './with-hooks';
 export { withMethods } from './with-methods';
 export { withProps } from './with-props';
+export { withResource, setResource, reloadResource } from './with-resource';
 export { withState } from './with-state';
