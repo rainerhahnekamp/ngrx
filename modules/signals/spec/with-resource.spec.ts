@@ -455,7 +455,6 @@ describe('withResource', () => {
         }),
         withMethods((store) => ({
           reloadActiveUser() {
-            const activeUser = store.activeUser;
             reloadResource(store, 'activeUser');
           },
           setActiveUser(user: User) {
@@ -463,6 +462,9 @@ describe('withResource', () => {
           },
         }))
       );
+
+      //TODO add tests which verify the resource states after setResource
+      //TODO add tests which setResource against resource with a union type
 
       const StoreWithMultipleNamedResources = signalStore(
         { providedIn: 'root' },
@@ -491,6 +493,7 @@ describe('withResource', () => {
             reloadResource(store, 'activeUser');
           },
           setActiveUser(user: User) {
+            // TODO: we are loosing here the type-safety
             patchState(store, setResource('activeUser', user));
           },
         }))

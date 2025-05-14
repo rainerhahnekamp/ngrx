@@ -250,11 +250,12 @@ export function setResource<Value>(
   value: NoInfer<Value>
 ): (state: { [RESOURCE]: ResourceRef<Value> }) => Record<string, never>;
 
+// TODO: This is not type-safe
 export function setResource<Name extends string, Value>(
-  name: NoInfer<Name>,
+  name: Name,
   value: NoInfer<Value>
 ): (state: {
-  [RESOURCES]: { [Key in Name]: ResourceRef<Value> };
+  [RESOURCES]: Record<NoInfer<Name>, ResourceRef<Value>>;
 }) => Record<string, never>;
 
 export function setResource<Name extends string, Value>(
