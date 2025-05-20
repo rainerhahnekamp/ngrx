@@ -2,23 +2,19 @@ import {
   Resource,
   ResourceRef,
   ResourceStatus,
-  signal,
   Signal,
   untracked,
 } from '@angular/core';
-import { WritableStateSource } from '@ngrx/signals';
 import {
   EmptyFeatureResult,
-  SignalsDictionary,
   SignalStoreFeature,
   SignalStoreFeatureResult,
   StateSignals,
 } from './signal-store-models';
-import { STATE_SOURCE } from './state-source';
+import { RESOURCE_SOURCE, ResourceSource } from './state-source';
 import { throwIfNull } from './ts-helpers';
 
-export const RESOURCE = Symbol('RESOURCE');
-export const RESOURCES = Symbol('RESOURCES');
+export const DEFAULT_RESOURCE = Symbol('DEFAULT_RESOURCE');
 
 type ResourceFeature<T> = EmptyFeatureResult & {
   props: {
@@ -31,8 +27,8 @@ type ResourceFeature<T> = EmptyFeatureResult & {
     hasValue(): this is Resource<NonNullable<T>>;
     reload(): boolean;
   };
-  state: {
-    [RESOURCE]: ResourceRef<T>;
+  resources: {
+    [DEFAULT_RESOURCE]: ResourceRef<T>;
   };
 };
 
@@ -40,21 +36,13 @@ type NamedResourceFeature<
   Name extends string,
   ResourceValue
 > = EmptyFeatureResult & {
-  state: {
-    [RESOURCES]: { [Key in Name]: ResourceRef<ResourceValue> };
+  resources: {
+    [Key in Name]: ResourceRef<ResourceValue>;
   };
   props: {
     [Key in Name]: Resource<ResourceValue>;
   };
 };
-
-type ResourceStore<T> = WritableStateSource<{
-  [RESOURCE]: ResourceRef<T>;
-}>;
-
-type NamedResourceStore<Name extends string, Value> = WritableStateSource<{
-  [RESOURCES]: Record<Name, ResourceRef<Value>>;
-}>;
 
 type StoreForResource<Input extends SignalStoreFeatureResult> = StateSignals<
   Input['state']
@@ -159,10 +147,9 @@ function createResourceFeature<Input extends SignalStoreFeatureResult, Value>(
   resourceFactory: (store: StoreForResource<Input>) => ResourceRef<Value>
 ): SignalStoreFeature {
   return (store) => {
-    const stateSource = store[STATE_SOURCE] as SignalsDictionary;
-    if (RESOURCE in stateSource) {
+    if (DEFAULT_RESOURCE in store[RESOURCE_SOURCE]) {
       throw new Error(
-        'You can only have one unnamed resource in a SignalStore. Use withResource(name, factory) to create named resources.'
+        `Resource already exists. You can only have one single resource.`
       );
     }
 
@@ -173,7 +160,6 @@ function createResourceFeature<Input extends SignalStoreFeatureResult, Value>(
     } as StoreForResource<Input>;
 
     const resource = resourceFactory(storeForResourceFactory);
-    stateSource[RESOURCE] = signal(resource);
 
     return {
       ...store,
@@ -193,6 +179,10 @@ function createResourceFeature<Input extends SignalStoreFeatureResult, Value>(
           throw new Error('not implemented');
         },
       },
+      [RESOURCE_SOURCE]: {
+        ...store[RESOURCE_SOURCE],
+        [DEFAULT_RESOURCE]: resource,
+      },
     };
   };
 }
@@ -208,7 +198,7 @@ function createNamedResourceFeature<
   ) => ResourceRef<ResourceValue>
 ): SignalStoreFeature {
   return (store) => {
-    if (name in store.props) {
+    if (name in store[RESOURCE_SOURCE]) {
       throw new Error(
         `Resource with "name" ${name} already exists. Please choose a different name.`
       );
@@ -223,40 +213,34 @@ function createNamedResourceFeature<
     const resource = resourceFactory(storeForResourceFactory);
     const readonlyResource = resource.asReadonly();
 
-    const storeWithResources = store as NamedResourceStore<Name, ResourceValue>;
-
-    if (!storeWithResources[STATE_SOURCE][RESOURCES]) {
-      storeWithResources[STATE_SOURCE][RESOURCES] = signal(
-        {} as Record<Name, ResourceRef<ResourceValue>>
-      );
-    }
-
-    storeWithResources[STATE_SOURCE][RESOURCES].update((value) => ({
-      ...value,
-      [name]: resource,
-    }));
-
     return {
       ...store,
       props: {
         ...store.props,
         [name]: readonlyResource,
       },
+      [RESOURCE_SOURCE]: {
+        ...store[RESOURCE_SOURCE],
+        [name]: resource,
+      },
     };
   };
 }
 
-export function setResource<Value>(
-  value: NoInfer<Value>
-): (state: { [RESOURCE]: ResourceRef<Value> }) => Record<string, never>;
+// TODO: This is not type-safe
+export function setResource<Value>(value: NoInfer<Value>): (
+  state: {}
+  // state: ResourceSource<{ [DEFAULT_RESOURCE]: ResourceRef<Value> }>
+) => Record<string, never>;
 
 // TODO: This is not type-safe
 export function setResource<Name extends string, Value>(
   name: Name,
-  value: NoInfer<Value>
-): (state: {
-  [RESOURCES]: Record<NoInfer<Name>, ResourceRef<Value>>;
-}) => Record<string, never>;
+  value: Value
+): (
+  state: {}
+  // state: ResourceSource<{ [Key in Name]: ResourceRef<Value> }>
+) => Record<string, never>;
 
 export function setResource<Name extends string, Value>(
   nameOrValue: Name | Value,
@@ -264,16 +248,16 @@ export function setResource<Name extends string, Value>(
 ) {
   if (value) {
     const name = nameOrValue as Name;
-    return (state: { [RESOURCES]: Record<Name, ResourceRef<Value>> }) => {
-      // TODO: We could delegate this to `patchState` which knows symbol RESOURCES
-      state[RESOURCES][name].set(value);
+    return (store: ResourceSource<{ [Key in Name]: ResourceRef<Value> }>) => {
+      store[RESOURCE_SOURCE][name].set(value);
       return {};
     };
   } else {
-    const resourceValue = nameOrValue as Value;
-    return (state: { [RESOURCE]: ResourceRef<Value> }) => {
-      // TODO: We could delegate this to `patchState` which knows symbol RESOURCES
-      state[RESOURCE].set(resourceValue);
+    return (
+      store: ResourceSource<{ [DEFAULT_RESOURCE]: ResourceRef<Value> }>
+    ) => {
+      const value = nameOrValue as Value;
+      store[RESOURCE_SOURCE][DEFAULT_RESOURCE].set(value);
       return {};
     };
   }
@@ -283,30 +267,30 @@ export function setResource<Name extends string, Value>(
  * Triggers the `reload` method on the internal resource.
  * @param store
  */
-export function reloadResource(store: ResourceStore<unknown>): void;
+export function reloadResource(
+  store: ResourceSource<{ [DEFAULT_RESOURCE]: ResourceRef<unknown> }>
+): void;
 /**
  * Triggers the `reload` method on the internal resource.
  * @param store
  * @param name name of the resource to reload
  */
 export function reloadResource<Name extends string>(
-  store: NamedResourceStore<Name, unknown>,
+  store: ResourceSource<Record<Name, ResourceRef<unknown>>>,
   name: Name
 ): void;
 
 export function reloadResource<Name extends string>(
-  store: ResourceStore<unknown> | NamedResourceStore<Name, unknown>,
+  store: ResourceSource<
+    Record<Name | typeof DEFAULT_RESOURCE, ResourceRef<unknown>>
+  >,
   name?: Name
 ) {
   untracked(() => {
     if (name) {
-      const stateSource = (store as NamedResourceStore<Name, unknown>)[
-        STATE_SOURCE
-      ];
-      stateSource[RESOURCES]()[name].reload();
+      store[RESOURCE_SOURCE][name].reload();
     } else {
-      const stateSource = (store as ResourceStore<unknown>)[STATE_SOURCE];
-      stateSource[RESOURCE]().reload();
+      store[RESOURCE_SOURCE][DEFAULT_RESOURCE].reload();
     }
   });
 }

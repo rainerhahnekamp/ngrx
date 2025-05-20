@@ -8,6 +8,7 @@ import {
   untracked,
   WritableSignal,
 } from '@angular/core';
+import { ResourceDictionary } from './signal-store-models';
 import { Prettify } from './ts-helpers';
 
 const STATE_WATCHERS = new WeakMap<object, Array<StateWatcher<any>>>();
@@ -22,6 +23,12 @@ export type WritableStateSource<State extends object> = {
 
 export type StateSource<State extends object> = {
   [STATE_SOURCE]: { [Property in keyof State]: Signal<State[Property]> };
+};
+
+export const RESOURCE_SOURCE = Symbol('RESOURCES_SOURCE');
+
+export type ResourceSource<Resources extends ResourceDictionary> = {
+  [RESOURCE_SOURCE]: Resources;
 };
 
 export type PartialStateUpdater<State extends object> = (

@@ -9,6 +9,7 @@ type PrettifyFeatureResult<Result extends SignalStoreFeatureResult> = Prettify<{
   state: Prettify<Result['state']>;
   props: Prettify<Result['props']>;
   methods: Prettify<Result['methods']>;
+  resources: Prettify<Result['resources']>;
 }>;
 
 export function signalStoreFeature<F1 extends SignalStoreFeatureResult>(

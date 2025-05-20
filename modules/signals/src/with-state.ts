@@ -14,19 +14,19 @@ export function withState<State extends object>(
   stateFactory: () => State
 ): SignalStoreFeature<
   EmptyFeatureResult,
-  { state: State; props: {}; methods: {} }
+  EmptyFeatureResult & { state: State }
 >;
 export function withState<State extends object>(
   state: State
 ): SignalStoreFeature<
   EmptyFeatureResult,
-  { state: State; props: {}; methods: {} }
+  EmptyFeatureResult & { state: State }
 >;
 export function withState<State extends object>(
   stateOrFactory: State | (() => State)
 ): SignalStoreFeature<
   SignalStoreFeatureResult,
-  { state: State; props: {}; methods: {} }
+  EmptyFeatureResult & { state: State }
 > {
   return (store) => {
     const state =

@@ -1,6 +1,7 @@
 import { STATE_SOURCE, WritableStateSource } from './state-source';
 import { assertUniqueStoreMembers } from './signal-store-assertions';
 import {
+  EmptyFeatureResult,
   InnerSignalStore,
   SignalStoreFeature,
   SignalStoreFeatureResult,
@@ -20,7 +21,7 @@ export function withProps<
         WritableStateSource<Prettify<Input['state']>>
     >
   ) => Props
-): SignalStoreFeature<Input, { state: {}; props: Props; methods: {} }> {
+): SignalStoreFeature<Input, EmptyFeatureResult & { props: Props }> {
   return (store) => {
     const props = propsFactory({
       [STATE_SOURCE]: store[STATE_SOURCE],

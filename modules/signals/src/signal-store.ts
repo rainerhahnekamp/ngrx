@@ -1,5 +1,4 @@
-import { DestroyRef, inject, Injectable, signal, Type } from '@angular/core';
-import { STATE_SOURCE, StateSource, WritableStateSource } from './state-source';
+import { DestroyRef, inject, Injectable, Type } from '@angular/core';
 import {
   EmptyFeatureResult,
   InnerSignalStore,
@@ -7,6 +6,12 @@ import {
   SignalStoreFeatureResult,
   StateSignals,
 } from './signal-store-models';
+import {
+  RESOURCE_SOURCE,
+  STATE_SOURCE,
+  StateSource,
+  WritableStateSource,
+} from './state-source';
 import { OmitPrivate, Prettify } from './ts-helpers';
 
 type SignalStoreConfig = { providedIn?: 'root'; protectedState?: boolean };
@@ -1362,6 +1367,7 @@ export function signalStore(
       };
 
       (this as any)[STATE_SOURCE] = innerStore[STATE_SOURCE];
+      (this as any)[RESOURCE_SOURCE] = innerStore[RESOURCE_SOURCE];
 
       for (const key of Reflect.ownKeys(storeMembers)) {
         (this as any)[key] = storeMembers[key];
@@ -1388,6 +1394,7 @@ export function getInitialInnerStore(): InnerSignalStore {
     stateSignals: {},
     props: {},
     methods: {},
+    [RESOURCE_SOURCE]: {},
     hooks: {},
   };
 }

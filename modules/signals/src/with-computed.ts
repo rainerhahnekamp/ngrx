@@ -1,4 +1,5 @@
 import {
+  EmptyFeatureResult,
   SignalsDictionary,
   SignalStoreFeature,
   SignalStoreFeatureResult,
@@ -14,9 +15,6 @@ export function withComputed<
   signalsFactory: (
     store: Prettify<StateSignals<Input['state']> & Input['props']>
   ) => ComputedSignals
-): SignalStoreFeature<
-  Input,
-  { state: {}; props: ComputedSignals; methods: {} }
-> {
+): SignalStoreFeature<Input, EmptyFeatureResult & { props: ComputedSignals }> {
   return withProps(signalsFactory);
 }
